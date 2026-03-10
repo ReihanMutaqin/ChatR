@@ -44,20 +44,71 @@ const client = new Client({
     puppeteer: puppeteerConfig,
 });
 
-// 4. Setup event handlers
+// 4. QR code state (untuk web-based QR display)
+let latestQr = null;
+let botReady = false;
+
+// 5. Setup event handlers
 setupEventHandlers(client);
 
-// 5. Setup message handler
+// Simpan QR data untuk ditampilkan di web
+client.on('qr', (qr) => {
+    latestQr = qr;
+    botReady = false;
+    Logger.info('📱 QR Code baru tersedia! Buka /qr di browser untuk scan.');
+});
+
+client.on('ready', () => {
+    latestQr = null;
+    botReady = true;
+});
+
+// 6. Setup message handler
 client.on('message', (message) => {
     handleMessage(message, client);
 });
 
-// 6. Health check HTTP server (untuk Railway)
+// 7. Health check & QR code HTTP server (untuk Railway)
 const PORT = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
     if (req.url === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+        res.end(JSON.stringify({ status: 'ok', uptime: process.uptime(), botReady }));
+    } else if (req.url === '/qr') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        if (botReady) {
+            res.end(`
+                <html><body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;background:#1a1a2e;color:#e0e0e0;">
+                    <div style="text-align:center;padding:40px;background:#16213e;border-radius:20px;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+                        <h1>✅ Bot Sudah Terhubung!</h1>
+                        <p>WhatsApp Bot sudah online dan siap digunakan.</p>
+                    </div>
+                </body></html>
+            `);
+        } else if (latestQr) {
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(latestQr)}`;
+            res.end(`
+                <html>
+                <head><meta http-equiv="refresh" content="30"><title>Scan QR Code</title></head>
+                <body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;background:#1a1a2e;color:#e0e0e0;">
+                    <div style="text-align:center;padding:40px;background:#16213e;border-radius:20px;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+                        <h1>📱 Scan QR Code</h1>
+                        <p>Buka WhatsApp > Linked Devices > Link a Device</p>
+                        <img src="${qrImageUrl}" style="margin:20px;border-radius:10px;border:4px solid #fff;" />
+                        <p style="color:#888;font-size:14px;">Halaman ini auto-refresh setiap 30 detik</p>
+                    </div>
+                </body></html>
+            `);
+        } else {
+            res.end(`
+                <html><body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;background:#1a1a2e;color:#e0e0e0;">
+                    <div style="text-align:center;padding:40px;background:#16213e;border-radius:20px;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+                        <h1>⏳ Menunggu QR Code...</h1>
+                        <p>QR Code belum tersedia. Tunggu sebentar dan refresh halaman ini.</p>
+                    </div>
+                </body></html>
+            `);
+        }
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('WhatsApp Bot is running');
