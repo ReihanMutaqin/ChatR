@@ -7,9 +7,18 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js"
   },
-  "keywords": ["whatsapp", "bot", "firebase", "openrouter", "ai"],
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "firebase",
+    "openrouter",
+    "ai"
+  ],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "whatsapp-web.js": "^1.26.0",
     "qrcode-terminal": "^0.12.0",

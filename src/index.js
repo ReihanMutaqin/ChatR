@@ -1,4 +1,5 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
+const http = require('http');
 const { initializeFirebase } = require('./config/firebase');
 const Logger = require('./utils/logger');
 const commandRegistry = require('./commands/index');
@@ -19,19 +20,28 @@ initializeFirebase();
 commandRegistry.loadCommands();
 
 // 3. Buat WhatsApp client
+const puppeteerArgs = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-accelerated-2d-canvas',
+    '--no-first-run',
+    '--disable-gpu',
+];
+
+const puppeteerConfig = {
+    headless: true,
+    args: puppeteerArgs,
+};
+
+// Gunakan Chromium dari system jika tersedia (Docker/Railway)
+if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+}
+
 const client = new Client({
     authStrategy: new LocalAuth(),
-    puppeteer: {
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--disable-gpu',
-        ],
-    },
+    puppeteer: puppeteerConfig,
 });
 
 // 4. Setup event handlers
@@ -42,7 +52,23 @@ client.on('message', (message) => {
     handleMessage(message, client);
 });
 
-// 6. Mulai client
+// 6. Health check HTTP server (untuk Railway)
+const PORT = process.env.PORT || 3000;
+const server = http.createServer((req, res) => {
+    if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+    } else {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('WhatsApp Bot is running');
+    }
+});
+
+server.listen(PORT, () => {
+    Logger.info(`🌐 Health check server berjalan di port ${PORT}`);
+});
+
+// 7. Mulai client
 client.initialize();
 
 // ========================================

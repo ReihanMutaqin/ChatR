@@ -11,8 +11,18 @@ function initializeFirebase() {
             return db;
         }
 
-        // Cek apakah service account file ada
-        if (fs.existsSync(config.firebase.serviceAccountPath)) {
+        // Cek apakah credentials tersedia via environment variable (untuk Railway/Docker)
+        const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+
+        if (serviceAccountJson) {
+            const serviceAccount = JSON.parse(serviceAccountJson);
+            admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount),
+                projectId: config.firebase.projectId,
+            });
+            console.log('✅ Firebase berhasil diinisialisasi (dari env variable)');
+        } else if (fs.existsSync(config.firebase.serviceAccountPath)) {
+            // Fallback ke file lokal
             const serviceAccount = require(config.firebase.serviceAccountPath);
             admin.initializeApp({
                 credential: admin.credential.cert(serviceAccount),
@@ -20,8 +30,8 @@ function initializeFirebase() {
             });
             console.log('✅ Firebase berhasil diinisialisasi');
         } else {
-            console.warn('⚠️  Firebase service account file tidak ditemukan.');
-            console.warn(`   Path: ${config.firebase.serviceAccountPath}`);
+            console.warn('⚠️  Firebase service account tidak ditemukan.');
+            console.warn('   Set FIREBASE_SERVICE_ACCOUNT_JSON env variable atau sediakan file.');
             console.warn('   Fitur database tidak akan bekerja.\n');
             return null;
         }
